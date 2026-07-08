@@ -8,6 +8,7 @@ namespace StoreSystem.Api.Controllers;
 // Kirim (oluv) — firmadan mahsulot kelishi. Kirim yaratilganda:
 //  • har bir mahsulot ombori (TotalPieces) oshadi,
 //  • mahsulot xarid narxi (BuyPriceBlock) yangilanadi (ixtiyoriy),
+//  • mahsulot SOTUV narxi (SellPriceBlock / SellPricePiece) yangilanadi (ixtiyoriy),
 //  • to'lanmagan qism firmaning qarziga (DebtBalance) qo'shiladi.
 [ApiController]
 [Route("api/[controller]")]
@@ -18,7 +19,7 @@ public class PurchasesController : ControllerBase
 
     // Kirimlar ro'yxati (ixtiyoriy sana oralig'i bilan), eng yangisi birinchi
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    public async Task GetAll([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
         var q = _db.Purchases
             .Include(p => p.Supplier)
@@ -33,7 +34,7 @@ public class PurchasesController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetById(int id)
+    public async Task GetById(int id)
     {
         var p = await _db.Purchases
             .Include(p => p.Supplier)
@@ -44,7 +45,7 @@ public class PurchasesController : ControllerBase
 
     // Kirimlar bo'yicha qisqa hisobot (sana oralig'i)
     [HttpGet("summary")]
-    public async Task<IActionResult> Summary([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    public async Task Summary([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
         var q = _db.Purchases.AsQueryable();
         if (from.HasValue) q = q.Where(p => p.CreatedAt >= from.Value.Date);
@@ -63,16 +64,12 @@ public class PurchasesController : ControllerBase
         });
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  QARZ MUDDATI ESLATMASI
-    //  To'lash muddati (DueDate) bugun yoki o'tib ketgan, hali to'lanmagan
-    //  (firma qarzi bor) va buxgalter/admin tomonidan "ko'rib chiqilmagan"
-    //  kirimlar. Admin/Buxgalter paneli ochilganda banner shulardan xabar beradi.
-    // ─────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────
+    // QARZ MUDDATI ESLATMASI
+    // ────────────────────────────────────────
     [HttpGet("due")]
-    public async Task<IActionResult> Due()
+    public async Task Due()
     {
-        // Bugun tugaguncha (ertaga 00:00 dan oldin) muddati kelganlar
         var tomorrow = DateTime.Today.AddDays(1);
 
         var list = await _db.Purchases
@@ -92,7 +89,7 @@ public class PurchasesController : ControllerBase
 
     // Eslatmani "ko'rib chiqildi" deb belgilash (Tushunarli yoki to'langandan keyin).
     [HttpPost("{id}/ack")]
-    public async Task<IActionResult> AckReminder(int id)
+    public async Task AckReminder(int id)
     {
         var p = await _db.Purchases.FindAsync(id);
         if (p == null) return NotFound();
@@ -101,11 +98,11 @@ public class PurchasesController : ControllerBase
         return Ok();
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  YANGI KIRIM YARATISH (tranzaksiya: hammasi yoki hech narsa)
-    // ─────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────
+    // YANGI KIRIM YARATISH (tranzaksiya: hammasi yoki hech narsa)
+    // ────────────────────────────────────────
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] PurchaseRequest req)
+    public async Task Create([FromBody] PurchaseRequest req)
     {
         if (req == null || req.Items == null || req.Items.Count == 0)
             return BadRequest(new { message = "Kamida bitta mahsulot qatori bo'lishi kerak." });
@@ -133,9 +130,6 @@ public class PurchasesController : ControllerBase
                 if (product == null) continue;
 
                 // PiecesPerBlock — har bir "Quantity" birligi nechta donaga teng.
-                //  • Berilsa (override) — o'shani ishlatamiz (masalan dona rejimida 1).
-                //  • Berilmasa — mahsulotning blokdagi dona soni.
-                // Shu sabab blok / dona / kg kirimlari aniq hisoblanadi.
                 int piecesPerBlock = it.PiecesPerBlock.HasValue && it.PiecesPerBlock.Value > 0
                     ? it.PiecesPerBlock.Value
                     : (product.QuantityInBlock <= 0 ? 1 : product.QuantityInBlock);
@@ -144,9 +138,7 @@ public class PurchasesController : ControllerBase
                 // Omborni oshiramiz
                 product.TotalPieces += piecesAdded;
 
-                // Xarid narxini yangilaymiz (ixtiyoriy). Saqlanadigan narx — doim BLOK narxi.
-                //  • BuyPriceBlock berilsa — o'shani ishlatamiz (dona rejimida desktop blok narxiga aylantiradi).
-                //  • Berilmasa — UnitCost (blok rejimida UnitCost = blok narxining o'zi).
+                // XARID narxini yangilaymiz (ixtiyoriy). Saqlanadigan narx — doim BLOK narxi.
                 if (it.UpdateBuyPrice)
                 {
                     double newBlockPrice = it.BuyPriceBlock.HasValue && it.BuyPriceBlock.Value > 0
@@ -154,6 +146,16 @@ public class PurchasesController : ControllerBase
                         : it.UnitCost;
                     if (newBlockPrice > 0) product.BuyPriceBlock = newBlockPrice;
                 }
+
+                // SOTUV narxini yangilaymiz (ixtiyoriy — YANGI).
+                // Yangi partiya boshqa narxda kelsa, sotuv narxi ham o'zgarishi mumkin.
+                // • SellPriceBlock berilsa (> 0) — mahsulotning blok sotuv narxini yangilaymiz.
+                // • SellPricePiece berilsa (> 0) — dona sotuv narxini yangilaymiz.
+                // Berilmasa (null yoki 0) — eski sotuv narxi O'ZGARMAYDI (orqaga moslik).
+                if (it.SellPriceBlock.HasValue && it.SellPriceBlock.Value > 0)
+                    product.SellPriceBlock = it.SellPriceBlock.Value;
+                if (it.SellPricePiece.HasValue && it.SellPricePiece.Value > 0)
+                    product.SellPricePiece = it.SellPricePiece.Value;
 
                 double lineTotal = it.Quantity * it.UnitCost;
                 total += lineTotal;
@@ -183,7 +185,7 @@ public class PurchasesController : ControllerBase
             total = Math.Round(total, 2);
             double paid = req.PaidSum;
             if (paid < 0) paid = 0;
-            if (paid > total) paid = total;       // jamidan ortiq to'lab bo'lmaydi
+            if (paid > total) paid = total; // jamidan ortiq to'lab bo'lmaydi
             double debt = Math.Round(total - paid, 2);
 
             purchase.TotalSum = total;
@@ -211,11 +213,11 @@ public class PurchasesController : ControllerBase
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  KIRIMNI O'CHIRISH (orqaga qaytarish: ombor va qarzni tiklaydi)
-    // ─────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────
+    // KIRIMNI O'CHIRISH (orqaga qaytarish: ombor va qarzni tiklaydi)
+    // ────────────────────────────────────────
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task Delete(int id)
     {
         var purchase = await _db.Purchases
             .Include(p => p.Items)
@@ -264,21 +266,25 @@ public class PurchaseRequest
     public double PaidSum { get; set; }
     public DateTime? DueDate { get; set; }
     public string? Note { get; set; }
-    public List<PurchaseItemRequest> Items { get; set; } = new();
+    public List Items { get; set; } = new();
 }
 
 public class PurchaseItemRequest
 {
     public int ProductId { get; set; }
-    public int Quantity { get; set; }       // necha blok/birlik olindi
-    public double UnitCost { get; set; }    // 1 blok/birlik xarid narxi (LineTotal shu bo'yicha)
+    public int Quantity { get; set; }          // necha blok/birlik olindi
+    public double UnitCost { get; set; }       // 1 blok/birlik xarid narxi (LineTotal shu bo'yicha)
     public bool UpdateBuyPrice { get; set; } = true;
 
     // ── Aniq hisob uchun ixtiyoriy override'lar (orqaga moslik saqlanadi) ──
     // PiecesPerBlock: har bir Quantity birligi nechta donaga teng (dona rejimida 1).
-    //   null bo'lsa — mahsulotning QuantityInBlock'i ishlatiladi.
     public int? PiecesPerBlock { get; set; }
-    // BuyPriceBlock: mahsulotga saqlanadigan BLOK xarid narxi (dona rejimida
-    //   desktop dona narxini blok narxiga aylantirib yuboradi). null bo'lsa UnitCost.
+    // BuyPriceBlock: mahsulotga saqlanadigan BLOK xarid narxi. null bo'lsa UnitCost.
     public double? BuyPriceBlock { get; set; }
+
+    // ── SOTUV narxi (YANGI, ixtiyoriy) ──
+    // Yangi partiya boshqa narxda kelsa, sotuv narxini ham shu kirimda yangilash uchun.
+    // null yoki 0 bo'lsa — mahsulotning eski sotuv narxi O'ZGARMAYDI.
+    public double? SellPriceBlock { get; set; }
+    public double? SellPricePiece { get; set; }
 }
