@@ -27,7 +27,7 @@ public class AdminController : ControllerBase
     // saqlanadi va bu tozalashda o'chirilmaydi.
     // ─────────────────────────────────
     [HttpPost("reset")]
-    public async Task ResetAll([FromBody] ResetRequest req)
+    public async Task<IActionResult> ResetAll([FromBody] ResetRequest req)
     {
         // Oddiy himoya: noto'g'ri kalit bilan tasodifan chaqirilmasligi uchun
         if (req?.ConfirmKey != "7707")
