@@ -149,8 +149,8 @@ public class PurchasesController : ControllerBase
 
                 // SOTUV narxini yangilaymiz (ixtiyoriy — YANGI).
                 // Yangi partiya boshqa narxda kelsa, sotuv narxi ham o'zgarishi mumkin.
-                // • SellPriceBlock berilsa (> 0) — mahsulotning blok sotuv narxini yangilaymiz.
-                // • SellPricePiece berilsa (> 0) — dona sotuv narxini yangilaymiz.
+                //  • SellPriceBlock berilsa (> 0) — mahsulotning blok sotuv narxini yangilaymiz.
+                //  • SellPricePiece berilsa (> 0) — dona sotuv narxini yangilaymiz.
                 // Berilmasa (null yoki 0) — eski sotuv narxi O'ZGARMAYDI (orqaga moslik).
                 if (it.SellPriceBlock.HasValue && it.SellPriceBlock.Value > 0)
                     product.SellPriceBlock = it.SellPriceBlock.Value;
@@ -266,7 +266,7 @@ public class PurchaseRequest
     public double PaidSum { get; set; }
     public DateTime? DueDate { get; set; }
     public string? Note { get; set; }
-    public List Items { get; set; } = new();
+    public List<PurchaseItemRequest> Items { get; set; } = new();
 }
 
 public class PurchaseItemRequest
