@@ -19,7 +19,7 @@ public class PurchasesController : ControllerBase
 
     // Kirimlar ro'yxati (ixtiyoriy sana oralig'i bilan), eng yangisi birinchi
     [HttpGet]
-    public async Task GetAll([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    public async Task<IActionResult> GetAll([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
         var q = _db.Purchases
             .Include(p => p.Supplier)
@@ -34,7 +34,7 @@ public class PurchasesController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task GetById(int id)
+    public async Task<IActionResult> GetById(int id)
     {
         var p = await _db.Purchases
             .Include(p => p.Supplier)
@@ -45,7 +45,7 @@ public class PurchasesController : ControllerBase
 
     // Kirimlar bo'yicha qisqa hisobot (sana oralig'i)
     [HttpGet("summary")]
-    public async Task Summary([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    public async Task<IActionResult> Summary([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
         var q = _db.Purchases.AsQueryable();
         if (from.HasValue) q = q.Where(p => p.CreatedAt >= from.Value.Date);
@@ -68,7 +68,7 @@ public class PurchasesController : ControllerBase
     // QARZ MUDDATI ESLATMASI
     // ────────────────────────────────────────
     [HttpGet("due")]
-    public async Task Due()
+    public async Task<IActionResult> Due()
     {
         var tomorrow = DateTime.Today.AddDays(1);
 
@@ -89,7 +89,7 @@ public class PurchasesController : ControllerBase
 
     // Eslatmani "ko'rib chiqildi" deb belgilash (Tushunarli yoki to'langandan keyin).
     [HttpPost("{id}/ack")]
-    public async Task AckReminder(int id)
+    public async Task<IActionResult> AckReminder(int id)
     {
         var p = await _db.Purchases.FindAsync(id);
         if (p == null) return NotFound();
@@ -102,7 +102,7 @@ public class PurchasesController : ControllerBase
     // YANGI KIRIM YARATISH (tranzaksiya: hammasi yoki hech narsa)
     // ────────────────────────────────────────
     [HttpPost]
-    public async Task Create([FromBody] PurchaseRequest req)
+    public async Task<IActionResult> Create([FromBody] PurchaseRequest req)
     {
         if (req == null || req.Items == null || req.Items.Count == 0)
             return BadRequest(new { message = "Kamida bitta mahsulot qatori bo'lishi kerak." });
@@ -217,7 +217,7 @@ public class PurchasesController : ControllerBase
     // KIRIMNI O'CHIRISH (orqaga qaytarish: ombor va qarzni tiklaydi)
     // ────────────────────────────────────────
     [HttpDelete("{id}")]
-    public async Task Delete(int id)
+    public async Task<IActionResult> Delete(int id)
     {
         var purchase = await _db.Purchases
             .Include(p => p.Items)
