@@ -12,21 +12,22 @@ public class AdminController : ControllerBase
     private readonly AppDbContext _db;
     public AdminController(AppDbContext db) => _db = db;
 
-    // ─────────────────────────────────────────────────────────────
-    //  BARCHA MA'LUMOTLARNI TOZALASH (Factory reset)
-    //  Xodimlar, mijozlar, FIRMALAR, mahsulotlar, KIRIMLAR (Purchases)
-    //  va kirim qatorlari, ombor qoldiqlari (Stocks), buyurtmalar,
-    //  firma to'lovlari, qarz to'lovlari, shtrix-kodlar va sinxron
-    //  tarixi — hammasini BUTUNLAY o'chiradi. So'ng baza bo'sh
-    //  qolmasligi (admin qulflanib qolmasligi) uchun yangi standart
-    //  admin yaratiladi:  username = admin,  parol = 7707
+    // ─────────────────────────────────
+    // BARCHA MA'LUMOTLARNI TOZALASH (Factory reset)
+    // Xodimlar, mijozlar, FIRMALAR, mahsulotlar, KIRIMLAR (Purchases)
+    // va kirim qatorlari, ombor qoldiqlari (Stocks), buyurtmalar,
+    // QAYTARISHLAR (Returns), REVIZIYALAR (Revisions), firma to'lovlari,
+    // qarz to'lovlari, shtrix-kodlar va sinxron tarixi — hammasini
+    // BUTUNLAY o'chiradi. So'ng baza bo'sh qolmasligi (admin qulflanib
+    // qolmasligi) uchun yangi standart admin yaratiladi:
+    // username = admin, parol = 7707
     //
-    //  ESLATMA: Settings (umumiy sozlamalar — masalan buxgalter
-    //  o'chirish paroli) biznes ma'lumoti emas, shuning uchun ataylab
-    //  saqlanadi va bu tozalashda o'chirilmaydi.
-    // ─────────────────────────────────────────────────────────────
+    // ESLATMA: Settings (umumiy sozlamalar — masalan buxgalter
+    // o'chirish paroli) biznes ma'lumoti emas, shuning uchun ataylab
+    // saqlanadi va bu tozalashda o'chirilmaydi.
+    // ─────────────────────────────────
     [HttpPost("reset")]
-    public async Task<IActionResult> ResetAll([FromBody] ResetRequest req)
+    public async Task ResetAll([FromBody] ResetRequest req)
     {
         // Oddiy himoya: noto'g'ri kalit bilan tasodifan chaqirilmasligi uchun
         if (req?.ConfirmKey != "7707")
@@ -38,9 +39,19 @@ public class AdminController : ControllerBase
             // FK bog'lanishlarini hisobga olib, bolalardan (child) boshlab
             // ota (parent) jadvallarga qarab o'chiramiz. Restrict bog'lanishlar
             // buzilmasligi uchun tartib MUHIM:
+            //   Return -> Order: avval ReturnItems + Returns, keyin Orders
             //   Purchase -> Supplier (Restrict): avval Purchases, keyin Suppliers
             //   PurchaseItem -> Product (Restrict): avval PurchaseItems, keyin Products
             //   Order -> User (Restrict): avval Orders, keyin Users
+
+            // ── Qaytarishlar (vozvrat) — Orders'dan OLDIN ──
+            await TryExecuteAsync("DELETE FROM ReturnItems");
+            await TryExecuteAsync("DELETE FROM Returns");
+
+            // ── Reviziyalar (inventarizatsiya) ──
+            await TryExecuteAsync("DELETE FROM RevisionItems");
+            await TryExecuteAsync("DELETE FROM Revisions");
+
             await _db.Database.ExecuteSqlRawAsync("DELETE FROM OrderItems");
             await _db.Database.ExecuteSqlRawAsync("DELETE FROM Orders");
             await _db.Database.ExecuteSqlRawAsync("DELETE FROM Stocks");
@@ -56,6 +67,10 @@ public class AdminController : ControllerBase
             await _db.Database.ExecuteSqlRawAsync("DELETE FROM Users");
 
             // Identity (ID hisoblagich) larni 0 ga qaytaramiz — yangi yozuvlar 1 dan boshlanadi
+            await ReseedAsync("ReturnItems");
+            await ReseedAsync("Returns");
+            await ReseedAsync("RevisionItems");
+            await ReseedAsync("Revisions");
             await ReseedAsync("OrderItems");
             await ReseedAsync("Orders");
             await ReseedAsync("Stocks");
@@ -98,7 +113,8 @@ public class AdminController : ControllerBase
     private static readonly string[] _reseedableTables =
         { "OrderItems", "Orders", "Stocks", "ProductBarcodes", "DebtPayments",
           "PurchaseItems", "SupplierPayments", "Purchases", "Suppliers",
-          "Products", "Clients", "SyncOperations", "Users" };
+          "Products", "Clients", "SyncOperations", "Users",
+          "ReturnItems", "Returns", "RevisionItems", "Revisions" };
 
     private async Task ReseedAsync(string table)
     {
