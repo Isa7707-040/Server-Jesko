@@ -15,7 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<OrderItem> OrderItems { get; set; }
     public DbSet<Stock> Stocks { get; set; }
     public DbSet<User> Users { get; set; }
-    public DbSet<OnlineCustomer> OnlineCustomers { get; set; } // ⭐ YANGI: Online mijozlar
+    public DbSet<OnlineCustomer> OnlineCustomers { get; set; }
     // Oluv (kirim) moduli
     public DbSet<Supplier> Suppliers { get; set; }
     public DbSet<Purchase> Purchases { get; set; }
@@ -62,6 +62,13 @@ public class AppDbContext : DbContext
             .HasOne(o => o.Cashier)
             .WithMany()
             .HasForeignKey(o => o.CashierId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // ⭐ YANGI: Online mijoz bog'lanishi
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.OnlineCustomer)
+            .WithMany()
+            .HasForeignKey(o => o.OnlineCustomerId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<User>().HasData(new User
