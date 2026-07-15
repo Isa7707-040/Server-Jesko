@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<OrderItem> OrderItems { get; set; }
     public DbSet<Stock> Stocks { get; set; }
     public DbSet<User> Users { get; set; }
+    public DbSet<OnlineCustomer> OnlineCustomers { get; set; } // ⭐ YANGI: Online mijozlar
     // Oluv (kirim) moduli
     public DbSet<Supplier> Suppliers { get; set; }
     public DbSet<Purchase> Purchases { get; set; }
