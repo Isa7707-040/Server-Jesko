@@ -5,6 +5,8 @@ public class Order
     public int Id { get; set; }
     public int? ClientId { get; set; }
     public Client? Client { get; set; }
+    public int? OnlineCustomerId { get; set; }        // ⭐ YANGI: Online mijoz
+    public OnlineCustomer? OnlineCustomer { get; set; } // ⭐ YANGI: Online mijoz reference
     public int? UserId { get; set; }           // Qaysi sotuvchidan kelgan
     public User? User { get; set; }
     public int? CashierId { get; set; }         // Qaysi kassir to'lovni qabul qilgan
