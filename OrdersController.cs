@@ -20,6 +20,7 @@ public class OrdersController : ControllerBase
             .Include(o => o.Client)
             .Include(o => o.User)
             .Include(o => o.Cashier)
+            .Include(o => o.OnlineCustomer) // ⭐ YANGI
             .Include(o => o.Items).ThenInclude(i => i.Product)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync();
@@ -34,6 +35,7 @@ public class OrdersController : ControllerBase
             .Include(o => o.Client)
             .Include(o => o.User)
             .Include(o => o.Cashier)
+            .Include(o => o.OnlineCustomer) // ⭐ YANGI
             .Include(o => o.Items).ThenInclude(i => i.Product)
             .AsQueryable();
         if (from.HasValue) query = query.Where(o => o.CreatedAt >= from.Value);
@@ -50,6 +52,7 @@ public class OrdersController : ControllerBase
             .Include(o => o.Client)
             .Include(o => o.User)
             .Include(o => o.Cashier)
+            .Include(o => o.OnlineCustomer) // ⭐ YANGI
             .Include(o => o.Items).ThenInclude(i => i.Product)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync();
@@ -116,6 +119,7 @@ public class OrdersController : ControllerBase
         var order = new Order
         {
             ClientId = req.ClientId,
+            OnlineCustomerId = req.OnlineCustomerId, // ⭐ YANGI
             UserId = req.UserId,
             TotalSum = req.TotalSum,
             PaidSum = 0,
@@ -134,6 +138,7 @@ public class OrdersController : ControllerBase
             .Include(o => o.Client)
             .Include(o => o.User)
             .Include(o => o.Cashier)
+            .Include(o => o.OnlineCustomer) // ⭐ YANGI
             .Include(o => o.Items).ThenInclude(i => i.Product)
             .FirstAsync(o => o.Id == order.Id);
         return Ok(created);
@@ -176,6 +181,7 @@ public class OrdersController : ControllerBase
             var order = new Order
             {
                 ClientId = null,
+                OnlineCustomerId = null, // ⭐ QuickSell'da online customer yo'q
                 UserId = null,
                 CashierId = req.CashierId,
                 TotalSum = total,
@@ -222,6 +228,7 @@ public class OrdersController : ControllerBase
             var created = await _db.Orders
                 .Include(o => o.User)
                 .Include(o => o.Cashier)
+                .Include(o => o.OnlineCustomer) // ⭐ YANGI
                 .Include(o => o.Items).ThenInclude(i => i.Product)
                 .FirstAsync(o => o.Id == order.Id);
             return Ok(created);
@@ -239,6 +246,7 @@ public class OrdersController : ControllerBase
         var order = await _db.Orders
             .Include(o => o.Items).ThenInclude(i => i.Product)
             .Include(o => o.Client)
+            .Include(o => o.OnlineCustomer) // ⭐ YANGI
             .FirstOrDefaultAsync(o => o.Id == id);
 
         if (order == null) return NotFound();
@@ -307,6 +315,7 @@ public class OrdersController : ControllerBase
             .Include(o => o.Client)
             .Include(o => o.User)
             .Include(o => o.Cashier)
+            .Include(o => o.OnlineCustomer) // ⭐ YANGI
             .Include(o => o.Items).ThenInclude(i => i.Product)
             .FirstAsync(o => o.Id == order.Id);
         return Ok(paid);
@@ -353,6 +362,7 @@ public class OrdersController : ControllerBase
             .Include(o => o.Client)
             .Include(o => o.User)
             .Include(o => o.Cashier)
+            .Include(o => o.OnlineCustomer) // ⭐ YANGI
             .Include(o => o.Items).ThenInclude(i => i.Product)
             .FirstAsync(o => o.Id == order.Id);
         return Ok(updated);
@@ -423,6 +433,7 @@ public class OrdersController : ControllerBase
 public class OrderRequest
 {
     public int? ClientId { get; set; }
+    public int? OnlineCustomerId { get; set; } // ⭐ YANGI: Online mijoz
     public int? UserId { get; set; }
     public double TotalSum { get; set; }
     public List<OrderItemRequest> Items { get; set; } = new();
